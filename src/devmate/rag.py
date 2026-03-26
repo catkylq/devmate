@@ -23,6 +23,7 @@ def _iter_doc_texts(docs_dir: str | Path) -> list[tuple[str, str]]:
         out.append((file_path.name, text))
     return out
 
+
 def make_qdrant_client(config: AppConfig) -> QdrantClient:
     return QdrantClient(
         url=config.qdrant.url,
@@ -136,16 +137,34 @@ def search_knowledge_base(
     query: str,
     top_k: int = 4,
 ) -> list[dict[str, Any]]:
-    qdrant = make_qdrant_client(config)
-    embeddings = make_embeddings(config)
-    query_vec = embeddings.embed_query(query)
+    """Search the Qdrant collection for documents similar to the query."""
+    try:
+        qdrant = make_qdrant_client(config)
+        embeddings = make_embeddings(config)
+        query_vec = embeddings.embed_query(query)
 
-    hits = qdrant.search(
-        collection_name=config.qdrant.collection_name,
-        query_vector=query_vec,
-        limit=top_k,
-        with_payload=True,
-    )
+        # 兼容不同 Qdrant 客户端版本：优先使用 search_points，其次使用 search
+        if hasattr(qdrant, "search_points"):
+            hits = qdrant.search_points(
+                collection_name=config.qdrant.collection_name,
+                vector=query_vec,
+                limit=top_k,
+                with_payload=True,
+            )
+        elif hasattr(qdrant, "search"):
+            hits = qdrant.search(
+                collection_name=config.qdrant.collection_name,
+                query_vector=query_vec,
+                limit=top_k,
+                with_payload=True,
+            )
+        else:
+            logger.error("Qdrant client has no search method")
+            return []
+    except Exception as e:
+        logger.exception(f"RAG search failed: {e}")
+        return []
+
     results: list[dict[str, Any]] = []
     for hit in hits:
         payload = hit.payload or {}
@@ -168,4 +187,3 @@ def ingest_main() -> None:
 
 if __name__ == "__main__":
     ingest_main()
-

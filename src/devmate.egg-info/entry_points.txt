@@ -1,0 +1,5 @@
+[console_scripts]
+devmate = devmate.cli:main
+devmate-api = devmate.api:main
+devmate-mcp-search = devmate.mcp_server:main
+devmate-rag-ingest = devmate.rag:ingest_main

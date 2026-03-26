@@ -1,27 +1,22 @@
 from __future__ import annotations
 
-import os
 import logging
+import os
 
 import httpx
 from mcp.server.fastmcp import FastMCP
 
-from devmate.config import AppConfig, load_config
+from devmate.config import load_config
 
 logger = logging.getLogger(__name__)
 
 
-def build_mcp_server(config: AppConfig) -> FastMCP:
+def build_mcp_server(config) -> FastMCP:
     mcp = FastMCP(config.mcp.server_name)
 
     @mcp.tool()
     async def search_web(query: str, max_results: int = 5) -> list[dict]:
-        """Search the web with Tavily.
-
-        Args:
-            query: Search query.
-            max_results: Maximum number of results.
-        """
+        """Search the web with Tavily."""
         tavily_url = "https://api.tavily.com/search"
         payload = {
             "api_key": config.search.tavily_api_key,
@@ -53,22 +48,20 @@ def build_mcp_server(config: AppConfig) -> FastMCP:
 def main() -> None:
     config = load_config()
     mcp = build_mcp_server(config)
-    logger.info(
-        "Starting MCP Search Server on %s%s (name=%s)",
-        config.mcp.host,
-        f":{config.mcp.port}",
-        config.mcp.server_name,
-    )
-    # FastMCP v2+ removed host/port/path kwargs from `run()`; configure via env vars.
+
+    # 通过环境变量指定 host 和 port（FastMCP 会读取）
     os.environ["FASTMCP_HOST"] = config.mcp.host
     os.environ["FASTMCP_PORT"] = str(config.mcp.port)
-    os.environ["FASTMCP_STREAMABLE_HTTP_PATH"] = config.mcp.path
 
-    mcp.run(
-        transport="streamable-http",
+    logger.info(
+        "Starting MCP Search Server on %s:%s (name=%s)",
+        config.mcp.host,
+        config.mcp.port,
+        config.mcp.server_name,
     )
+    # 直接运行，不传递 host/port 参数，让环境变量生效
+    mcp.run(transport="streamable-http")
 
 
 if __name__ == "__main__":
     main()
-
