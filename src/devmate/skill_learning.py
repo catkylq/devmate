@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import logging
 import re
-from pathlib import Path
 
 from devmate.config import AppConfig
+from devmate.skills_paths import resolve_skills_root
 
 logger = logging.getLogger(__name__)
 
@@ -18,6 +18,11 @@ def _slugify(text: str, max_len: int = 48) -> str:
     return text or "learned-skill"
 
 
+def _yaml_quote(text: str) -> str:
+    escaped = text.replace("\\", "\\\\").replace('"', '\\"')
+    return f'"{escaped}"'
+
+
 def save_learned_skill(
     config: AppConfig,
     user_input: str,
@@ -26,20 +31,20 @@ def save_learned_skill(
     if not created_files:
         return None
 
-    skills_root = Path(config.skills.skills_dir).resolve()
+    skills_root = resolve_skills_root(config)
     skill_name = _slugify(user_input)
     target_dir = skills_root / skill_name
     target_dir.mkdir(parents=True, exist_ok=True)
 
     description = (
-        "Learned DevMate pattern based on user request. "
-        "The agent generated: " + ", ".join(created_files[:10])
+        "Learned DevMate workflow from a completed run. "
+        "Generated files: " + ", ".join(created_files[:10])
     )
 
     front_matter = (
         "---\n"
-        f"name: {skill_name}\n"
-        f"description: {description}\n"
+        f"name: {_yaml_quote(skill_name)}\n"
+        f"description: {_yaml_quote(description)}\n"
         "---\n"
     )
 
@@ -48,13 +53,14 @@ def save_learned_skill(
         front_matter
         + "\n"
         + "# When to use\n"
-        + "Use this skill for similar requests that require generating a "
-        + "multi-file project.\n\n"
+        + "Use this skill when the user asks for something similar to the original "
+        + "request (multi-file codegen, same stack or folder layout).\n\n"
         + "# What to do\n"
-        + "- Use `search_knowledge_base` to retrieve internal guidelines.\n"
-        + "- Use MCP `search_web` if external best practices are needed.\n"
-        + "- Call `create_files` to generate/update all required files.\n\n"
-        + "# Generated files in the learned example\n"
+        + "- Use `search_knowledge_base` for internal guidelines.\n"
+        + "- Use MCP `search_web` when external facts are needed.\n"
+        + "- Use filesystem tools (`write_file`, `edit_file`) under the workspace; "
+        + "do not paste large code in chat.\n\n"
+        + "# Reference files from this run\n"
         + files_list
         + "\n"
     )
@@ -63,4 +69,3 @@ def save_learned_skill(
     skill_path.write_text(content, encoding="utf-8")
     logger.info("Saved learned skill: %s", skill_path)
     return skill_name
-

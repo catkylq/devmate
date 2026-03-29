@@ -1,2 +1,1 @@
 """DevMate package."""
-

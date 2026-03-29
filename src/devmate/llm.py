@@ -19,7 +19,8 @@ def make_chat_model(config: AppConfig) -> BaseChatModel:
         )
 
     if provider == "deepseek":
-        # ChatDeepSeek accepts `api_base` (alias `base_url`).
+        # Prefer the dedicated DeepSeek chat model wrapper for compatibility with
+        # DeepSeek's Chat Completions payload expectations.
         return ChatDeepSeek(
             model=config.model.chat.model_name,
             api_key=config.model.chat.api_key,
@@ -27,9 +28,7 @@ def make_chat_model(config: AppConfig) -> BaseChatModel:
             temperature=0,
         )
 
-    raise ValueError(
-        "Unsupported model provider: " + config.model.chat.provider
-    )
+    raise ValueError("Unsupported model provider: " + config.model.chat.provider)
 
 
 def make_embeddings(config: AppConfig) -> OpenAIEmbeddings:
@@ -40,4 +39,3 @@ def make_embeddings(config: AppConfig) -> OpenAIEmbeddings:
         api_key=config.model.embedding.api_key,
         base_url=config.model.embedding.base_url,
     )
-

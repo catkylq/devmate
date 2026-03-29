@@ -143,18 +143,28 @@ def search_knowledge_base(
         embeddings = make_embeddings(config)
         query_vec = embeddings.embed_query(query)
 
-        # 兼容不同 Qdrant 客户端版本：优先使用 search_points，其次使用 search
-        if hasattr(qdrant, "search_points"):
-            hits = qdrant.search_points(
+        # 兼容不同 Qdrant 客户端版本：
+        # - 新版本常用 query_points
+        # - 部分版本提供 search / search_points
+        if hasattr(qdrant, "query_points"):
+            points_result = qdrant.query_points(
                 collection_name=config.qdrant.collection_name,
-                vector=query_vec,
+                query=query_vec,
                 limit=top_k,
                 with_payload=True,
             )
+            hits = getattr(points_result, "points", points_result)
         elif hasattr(qdrant, "search"):
             hits = qdrant.search(
                 collection_name=config.qdrant.collection_name,
                 query_vector=query_vec,
+                limit=top_k,
+                with_payload=True,
+            )
+        elif hasattr(qdrant, "search_points"):
+            hits = qdrant.search_points(
+                collection_name=config.qdrant.collection_name,
+                vector=query_vec,
                 limit=top_k,
                 with_payload=True,
             )
@@ -167,13 +177,13 @@ def search_knowledge_base(
 
     results: list[dict[str, Any]] = []
     for hit in hits:
-        payload = hit.payload or {}
+        payload = getattr(hit, "payload", None) or {}
         results.append(
             {
                 "text": payload.get("text"),
                 "source": payload.get("source"),
                 "chunk_index": payload.get("chunk_index"),
-                "score": hit.score,
+                "score": getattr(hit, "score", None),
             }
         )
     return results

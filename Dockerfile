@@ -7,7 +7,8 @@ RUN pip install --no-cache-dir uv
 COPY pyproject.toml README.md config.toml /app/
 COPY src /app/src
 COPY docs /app/docs
-COPY .skills /app/.skills
+COPY examples /app/examples
+RUN mkdir -p /app/.skills
 
 RUN uv sync
 

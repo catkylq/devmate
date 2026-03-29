@@ -1,30 +1,136 @@
-## DevMate
+# DevMate
+仓库链接：
+https://github.com/catkylq/devmate
+LangSmith run URL: 
+https://smith.langchain.com/o/1768aa42-7050-4f9a-a82f-23421ba2e020/projects/p/f8662038-82bb-408d-bb09-ebb70e4c10fb/r/019d38b1-09a2-7872-9fbb-71a47844d85f?poll=true
 
-DevMate is an AI coding assistant that can:
-- Use MCP search via **Streamable HTTP**
-- Use local-document RAG (Qdrant vector DB)
-- Use Agent Skills (skills directory)
-- Generate multi-file code outputs
 
-### Local quickstart
+DevMate 是一个用于面试评估的 AI 编程助手项目，核心能力包括：
 
-1. Configure `config.toml` (place your API keys).
-2. Create and install dependencies with `uv`.
-3. Start Qdrant and the MCP server with Docker Compose:
+- 通过 **Streamable HTTP** 调用 MCP 网络搜索
+- 基于 **Qdrant** 的本地文档 RAG 检索
+- Agent Skills（技能加载与任务模式学习）
+- 在 `workspace/` 中生成多文件代码项目
+
+## 技术栈
+
+- Python `3.13`
+- `uv`（环境与依赖管理）
+- deepagents（Deep Agents SDK）+ LangChain（模型与工具封装）
+- FastMCP + Tavily Search
+- Qdrant 向量数据库
+- LangSmith 可观测性追踪（清单要求项）
+
+## 项目结构
+
+- `src/devmate/agent.py`：Agent 主循环、工具编排、提示词逻辑
+- `src/devmate/mcp_server.py`：MCP Server，暴露 `search_web`
+- `src/devmate/mcp_client.py`：MCP Client（streamable HTTP）
+- `src/devmate/rag.py`：文档入库与向量检索
+- `src/devmate/skills.py`：deepagents 官方 Skills 源路径（含 `extra_skill_dirs` 分层）
+- `src/devmate/skill_learning.py`：任务成功后写入 `.skills/<slug>/SKILL.md`（Agent Skills 规格）
+- `examples/skills/`：与 [anthropics/skills](https://github.com/anthropics/skills) 同构的示例技能（清单测试用）
+- `docs/`：本地知识库文档
+- `workspace/`：Agent 生成的项目文件
+
+## 运行前准备
+
+1. 安装 Python `3.13`
+2. 安装 `uv`
+3. 准备 API Key：
+   - 聊天模型 API Key
+   - Embedding API Key
+   - Tavily API Key
+   - LangSmith API Key（用于 Trace 证据）
+
+## 配置说明
+
+编辑 `config.toml`，至少确认以下配置项：
+
+- `[model.chat]` 与 `[model.embedding]`
+- `[search].tavily_api_key`
+- `[langsmith].langchain_api_key`
+- `[skills].skills_dir`（默认 `.skills`）
+- `[skills].extra_skill_dirs`（可选，如 `examples/skills`，与 [anthropics/skills](https://github.com/anthropics/skills) 目录结构一致）
+- `[mcp]` / `[qdrant]` / `[app]`
+
+### Agent Skills 验收（清单）
+
+1. **官方实现**：使用 [deepagents Skills](https://docs.langchain.com/oss/python/deepagents/skills)（`create_deep_agent(..., skills=[...])` + `FilesystemBackend`）。
+2. **静态检查**：校验 `SKILL.md` 与 frontmatter：
 
 ```bash
-docker compose up -d
-docker compose up devmate-mcp-search
+uv run devmate-verify-skills
 ```
 
-4. In another terminal, ingest local docs into Qdrant:
+3. **学习**：成功生成文件后，会在 `.skills/<slug>/SKILL.md` 写入可复用说明（由 `skill_learning` 完成）。
+4. **复用**：再次发起语义相近的请求时，deepagents 会按 skill 的 `description` 做匹配；可在 LangSmith Trace 中查看是否调用了 `read_file` 读取某条 `SKILL.md`。
+5. **可选**：将 [anthropics/skills](https://github.com/anthropics/skills) 中任意技能目录复制到 `.skills/` 或追加到 `extra_skill_dirs` 后重新运行上述校验与 Agent。
+
+## 快速开始（CLI）
+
+1. 同步依赖：
+
+```bash
+uv sync
+```
+
+2. 启动依赖服务：
+
+```bash
+docker compose up -d qdrant devmate-mcp-search
+```
+
+> 注意：`config.toml` 中的密钥推荐使用环境变量注入（例如 `${TAVILY_API_KEY}`），避免明文提交。
+
+3. 将本地文档入库到 Qdrant：
 
 ```bash
 uv run devmate-rag-ingest
 ```
 
-5. Run the agent:
+4. 运行 Agent：
 
 ```bash
 uv run devmate --prompt "我想构建一个展示附近徒步路线的网站项目。"
 ```
+
+生成结果会输出到 `workspace/` 目录。
+
+## 以 API 服务运行
+
+```bash
+uv run devmate-api
+```
+
+可测试接口：
+
+- `GET http://127.0.0.1:8000/healthz`
+- `POST http://127.0.0.1:8000/run`
+
+请求示例：
+
+```json
+{
+  "prompt": "我想构建一个展示附近徒步路线的网站项目。"
+}
+```
+
+## 规范检查（面试验收证据）
+
+执行以下命令用于生成 PEP 8 / 代码格式检查证据：
+
+```bash
+uvx ruff check .
+uvx black --check .
+```
+
+如果 `black --check` 不通过，可先自动修复再复检：
+
+```bash
+uvx black .
+uvx ruff check .
+uvx black --check .
+```
+
+

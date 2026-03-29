@@ -12,6 +12,8 @@ src/devmate/mcp_server.py
 src/devmate/rag.py
 src/devmate/skill_learning.py
 src/devmate/skills.py
+src/devmate/skills_paths.py
+src/devmate/skills_verify.py
 src/devmate.egg-info/PKG-INFO
 src/devmate.egg-info/SOURCES.txt
 src/devmate.egg-info/dependency_links.txt

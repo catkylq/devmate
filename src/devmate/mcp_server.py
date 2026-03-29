@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-import os
 
 import httpx
 from mcp.server.fastmcp import FastMCP
@@ -12,7 +11,12 @@ logger = logging.getLogger(__name__)
 
 
 def build_mcp_server(config) -> FastMCP:
-    mcp = FastMCP(config.mcp.server_name)
+    # FastMCP defaults to port 8000; it does not read FASTMCP_PORT for the instance.
+    mcp = FastMCP(
+        config.mcp.server_name,
+        host=config.mcp.host,
+        port=config.mcp.port,
+    )
 
     @mcp.tool()
     async def search_web(query: str, max_results: int = 5) -> list[dict]:
@@ -49,17 +53,12 @@ def main() -> None:
     config = load_config()
     mcp = build_mcp_server(config)
 
-    # 通过环境变量指定 host 和 port（FastMCP 会读取）
-    os.environ["FASTMCP_HOST"] = config.mcp.host
-    os.environ["FASTMCP_PORT"] = str(config.mcp.port)
-
     logger.info(
         "Starting MCP Search Server on %s:%s (name=%s)",
         config.mcp.host,
         config.mcp.port,
         config.mcp.server_name,
     )
-    # 直接运行，不传递 host/port 参数，让环境变量生效
     mcp.run(transport="streamable-http")
 
 

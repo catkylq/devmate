@@ -5,6 +5,8 @@ from pathlib import Path
 from typing import Any
 
 import tomllib
+import os
+import re
 
 
 @dataclass(frozen=True)
@@ -42,6 +44,7 @@ class LangSmithConfig:
 @dataclass(frozen=True)
 class SkillsConfig:
     skills_dir: str
+    extra_skill_dirs: tuple[str, ...]
 
 
 @dataclass(frozen=True)
@@ -81,10 +84,27 @@ class ConfigError(RuntimeError):
     pass
 
 
+_ENV_PATTERN = re.compile(r"\$\{([A-Z0-9_]+)\}")
+
+
+def _expand_env(value: Any) -> Any:
+    if not isinstance(value, str):
+        return value
+
+    def _replace(match: re.Match[str]) -> str:
+        var = match.group(1)
+        return os.environ.get(var, "")
+
+    return _ENV_PATTERN.sub(_replace, value)
+
+
 def _require(data: dict[str, Any], key: str) -> Any:
     if key not in data or data[key] in (None, ""):
         raise ConfigError(f"Missing required config key: {key}")
-    return data[key]
+    value = _expand_env(data[key])
+    if value in (None, ""):
+        raise ConfigError(f"Missing required config key: {key}")
+    return value
 
 
 def load_config(path: str | Path = "config.toml") -> AppConfig:
@@ -101,16 +121,30 @@ def load_config(path: str | Path = "config.toml") -> AppConfig:
     qdrant_raw = raw.get("qdrant") or {}
     app_raw = raw.get("app") or {}
 
+    # Expand env vars for all string leaf values.
+    def _expand_section(section: dict[str, Any]) -> dict[str, Any]:
+        out: dict[str, Any] = {}
+        for k, v in section.items():
+            if isinstance(v, dict):
+                out[k] = _expand_section(v)
+            else:
+                out[k] = _expand_env(v)
+        return out
+
+    model_raw = _expand_section(model_raw) if isinstance(model_raw, dict) else model_raw
+    search_raw = _expand_section(search_raw)
+    langsmith_raw = _expand_section(langsmith_raw)
+    skills_raw = _expand_section(skills_raw)
+    mcp_raw = _expand_section(mcp_raw)
+    qdrant_raw = _expand_section(qdrant_raw)
+    app_raw = _expand_section(app_raw)
+
     # Support both formats:
     # 1) New format:
     #    [model.chat] + [model.embedding]
     # 2) Legacy format:
     #    [model] ai_base_url/api_key/model_name/embedding_model_name
-    if (
-        isinstance(model_raw, dict)
-        and "chat" in model_raw
-        and "embedding" in model_raw
-    ):
+    if isinstance(model_raw, dict) and "chat" in model_raw and "embedding" in model_raw:
         chat_raw = model_raw.get("chat") or {}
         embedding_raw = model_raw.get("embedding") or {}
         model = ModelConfig(
@@ -144,12 +178,23 @@ def load_config(path: str | Path = "config.toml") -> AppConfig:
         tavily_api_key=_require(search_raw, "tavily_api_key"),
     )
     langsmith = LangSmithConfig(
-        langchain_tracing_v2=bool(
-            langsmith_raw.get("langchain_tracing_v2", False)
-        ),
+        langchain_tracing_v2=bool(langsmith_raw.get("langchain_tracing_v2", False)),
         langchain_api_key=_require(langsmith_raw, "langchain_api_key"),
     )
-    skills = SkillsConfig(skills_dir=_require(skills_raw, "skills_dir"))
+    extra_skill_dirs_raw = skills_raw.get("extra_skill_dirs")
+    if extra_skill_dirs_raw is None:
+        extra_skill_dirs: tuple[str, ...] = ()
+    elif isinstance(extra_skill_dirs_raw, str):
+        extra_skill_dirs = (extra_skill_dirs_raw.strip(),) if extra_skill_dirs_raw.strip() else ()
+    elif isinstance(extra_skill_dirs_raw, list):
+        extra_skill_dirs = tuple(str(x).strip() for x in extra_skill_dirs_raw if str(x).strip())
+    else:
+        raise ConfigError("skills.extra_skill_dirs must be a string or list of strings")
+
+    skills = SkillsConfig(
+        skills_dir=_require(skills_raw, "skills_dir"),
+        extra_skill_dirs=extra_skill_dirs,
+    )
     mcp = MCPConfig(
         host=_require(mcp_raw, "host"),
         port=int(_require(mcp_raw, "port")),
@@ -174,4 +219,3 @@ def load_config(path: str | Path = "config.toml") -> AppConfig:
         qdrant=qdrant,
         app=app,
     )
-
