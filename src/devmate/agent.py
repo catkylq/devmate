@@ -201,8 +201,17 @@ async def run_agent_once(config: AppConfig, user_input: str) -> dict[str, Any]:
             share_url = ""
             try:
                 run_url = cb.get_run_url()
+                # Generate shareable link with retry for async sync
                 if cb.latest_run is not None:
-                    share_url = langsmith_client.share_run(cb.latest_run.id)
+                    for attempt in range(3):
+                        try:
+                            share_url = langsmith_client.share_run(cb.latest_run.id)
+                            break
+                        except Exception:  # noqa: BLE001
+                            if attempt < 2:
+                                await asyncio.sleep(1)
+                            else:
+                                share_url = run_url  # Fallback to regular URL
             except Exception:  # noqa: BLE001
                 logger.exception("Failed to generate LangSmith share link")
 

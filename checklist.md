@@ -84,13 +84,13 @@ git push -u origin main
         - [ ] 它是否反映了模拟文档中隐藏的任何 “内部指南”？ (加分项)。
 
 ## 第六阶段: Docker 集成 (DevMate 本身)
-- [ ] **容器化**:
-    - [ ] 编写 `Dockerfile` 以构建 DevMate 应用镜像。
-    - [ ] 编写 `docker-compose.yml` 编排服务 (App + Vector DB + MCP Server)。
-- [ ] **构建与运行**:
-    - [ ] **测试**: 运行 `docker compose up`。
-    - [ ] **验证**: 在容器内，Agent 依然可以正常访问网络 (MCP Search) 和读取向量库 (RAG)。
-    - [ ] **验证**: 确保文件生成功能在容器挂载的卷 (Volume) 中正常工作。
+- [x] **容器化**:
+    - [x] 编写 `Dockerfile` 以构建 DevMate 应用镜像。
+    - [x] 编写 `docker-compose.yml` 编排服务 (App + Vector DB + MCP Server)。
+- [x] **构建与运行**:
+    - [x] **测试**: 运行 `docker compose up`。
+    - [x] **验证**: 在容器内，Agent 依然可以正常访问网络 (MCP Search) 和读取向量库 (RAG)。
+    - [x] **验证**: 确保文件生成功能在容器挂载的卷 (Volume) 中正常工作。
 
 ## 第七阶段: 代码审查与润色
 - [ ] **PEP 8 规范 (一票否决)**:
